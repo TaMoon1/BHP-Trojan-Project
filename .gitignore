@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Custom token file for GitHub authentication
+my_token.txt
+
+# Local data output from running the trojan
+#data/
